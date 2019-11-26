@@ -24,18 +24,23 @@ public class SocketHandler implements Runnable {
     @Override
     public void run() {
         try {
-            double x = readInput();
-            new Thread(() -> {
-                System.out.println("Calculating task for " + x + ", press escape to cancel...");
-                try {
-                    System.out.println(task.run(x));
-                } catch (RuntimeException e) {
-                    if (e.getCause() instanceof AbortableLatch.AbortedException) {
-                        System.err.println("Calculation aborted");
-                    } else throw e;
-                }
-            }).start();
-            writeResponse("" + x);
+            try {
+                double x = readInput();
+                writeResponse("Calculating for x = " + x + ", check the console");
+                new Thread(() -> {
+                    System.out.println("Calculating task for " + x + ", press escape to cancel...");
+                    try {
+                        System.out.println(task.run(x));
+                    } catch (RuntimeException e) {
+                        if (e.getCause() instanceof AbortableLatch.AbortedException) {
+                            System.err.println("Calculation aborted");
+                        } else throw e;
+                    }
+                }).start();
+            } catch (RuntimeException e) {
+                writeResponse("Error occurred: " + e.getClass() + ": " + e.getMessage());
+                throw e;
+            }
         } catch (IOException e) {
             throw new RuntimeException(e);
         } finally {
@@ -81,7 +86,7 @@ public class SocketHandler implements Runnable {
     }
 
     private static Map<String, String> splitUrl(URL url) {
-        if (url.getQuery() == null) throw new NullPointerException("Query should exist");
+        if (url.getQuery() == null) throw new NullPointerException("Query should be present");
         Map<String, String> result = new LinkedHashMap<>();
         for (String pair: url.getQuery().split("&")) {
             int idx = pair.indexOf('=');
