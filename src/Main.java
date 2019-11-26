@@ -21,7 +21,7 @@ public class Main {
                 new SocketHandler(socket, task).run();
             } catch (RuntimeException e) {
                 if (!e.getMessage().equals("favicon request"))
-                    System.err.println("Error occurred: " + e.getClass() + ": " + e.getMessage());
+                    System.err.println("Error occurred: " + e.getClass().getSimpleName() + ": " + e.getMessage());
             }
         }
     }

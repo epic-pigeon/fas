@@ -38,7 +38,7 @@ public class SocketHandler implements Runnable {
                     }
                 }).start();
             } catch (RuntimeException e) {
-                writeResponse("Error occurred: " + e.getClass() + ": " + e.getMessage());
+                writeResponse("Error occurred: " + e.getClass().getSimpleName() + ": " + e.getMessage());
                 throw e;
             }
         } catch (IOException e) {
