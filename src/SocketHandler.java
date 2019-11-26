@@ -30,7 +30,7 @@ public class SocketHandler implements Runnable {
                 new Thread(() -> {
                     System.out.println("Calculating task for " + x + ", press escape to cancel...");
                     try {
-                        System.out.println(task.run(x));
+                        System.out.println("Result: " + task.run(x));
                     } catch (RuntimeException e) {
                         if (e.getCause() instanceof AbortableLatch.AbortedException) {
                             System.err.println("Calculation aborted");
