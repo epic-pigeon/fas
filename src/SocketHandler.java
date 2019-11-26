@@ -20,23 +20,30 @@ public class SocketHandler implements Runnable {
         this.task = task;
     }
 
+    private Thread thread;
 
     @Override
     public void run() {
         try {
             try {
+                // Reading GET query to determine x
                 double x = readInput();
                 writeResponse("Calculating for x = " + x + ", check the console");
-                new Thread(() -> {
+                this.thread = new Thread(() -> {
+                    // separate thread to calculate the functions
                     System.out.println("Calculating task for " + x + ", press escape to cancel...");
                     try {
                         System.out.println("Result: " + task.run(x));
+                        this.thread.stop();
                     } catch (RuntimeException e) {
+                        // If the cause of the exception is an AbortedException instance, then print that calculation is aborted
+                        // otherwise throw the exception
                         if (e.getCause() instanceof AbortableLatch.AbortedException) {
                             System.err.println("Calculation aborted");
                         } else throw e;
                     }
-                }).start();
+                });
+                this.thread.start();
             } catch (RuntimeException e) {
                 writeResponse("Error occurred: " + e.getClass().getSimpleName() + ": " + e.getMessage());
                 throw e;
@@ -65,14 +72,17 @@ public class SocketHandler implements Runnable {
 
     private double readInput() throws IOException {
         BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
-        double result = 0;
+        Double result = null;
         while (true) {
             String s = reader.readLine();
             if (s == null || s.trim().length() == 0) {
                 break;
             } else if (s.startsWith("GET ")) {
                 String query = s.split(" ")[1];
-                if (query.equals("/favicon.ico")) throw new RuntimeException("favicon request");
+                if (query.equals("/favicon.ico")) {
+                    // Throw a RuntimeException that is to be identified by the catch clause and ignored
+                    throw new RuntimeException("favicon request");
+                }
                 URL url = new URL("http://localhost:80" + query);
                 Map<String, String> map = splitUrl(url);
                 if (map.containsKey("x")) {
@@ -81,6 +91,9 @@ public class SocketHandler implements Runnable {
                     throw new RuntimeException("GET params should contain x");
                 }
             }
+        }
+        if (result == null) {
+            throw new RuntimeException("Only GET requests accepted");
         }
         return result;
     }

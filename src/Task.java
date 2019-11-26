@@ -23,24 +23,30 @@ public class Task {
     }
 
     public Double run(Double val) {
+        // The latch that extends CountDownLatch to allow aborting
         AbortableLatch latch = new AbortableLatch(2);
         AtomicReference<Double> resultF = new AtomicReference<>(), resultG = new AtomicReference<>();
-        new Thread(() -> {
+        // Thread to calculate f(x)
+        Thread fThread = new Thread(() -> {
             Double result = f.apply(val);
             latch.countDown();
             if (result == null) throw new RuntimeException("Function F returned null!");
-            if (result.equals(0D)) latch.countDown();
+            if (result.equals(0D)) latch.countDown(); // finish execution
             resultF.set(result);
-        }).start();
-        new Thread(() -> {
+        });
+        fThread.start();
+        // Thread to calculate g(x)
+        Thread gThread = new Thread(() -> {
             Double result = g.apply(val);
             latch.countDown();
             if (result == null) throw new RuntimeException("Function G returned null!");
-            if (result.equals(0D)) latch.countDown();
+            if (result.equals(0D)) latch.countDown(); // finish execution
             resultG.set(result);
-        }).start();
+        });
+        gThread.start();
         Thread waiting = null;
         if (timeoutUnit != null) {
+            // If the timeout is set, create the thread to abort the latch when time expired
             waiting = new Thread(() -> {
                 try {
                     timeoutUnit.sleep(timeout);
@@ -49,19 +55,33 @@ public class Task {
             });
             waiting.start();
         }
+        Thread keyThread = null;
         if (stopKey > 0) {
-            new Thread(() -> {
+            // If a stop key is set, create the thread to abort the latch if the stop key is pressed
+            keyThread = new Thread(() -> {
                 while (true) {
                     if (KeyUtils.isKeyDown(stopKey)) {
                         latch.abort();
                     }
                 }
-            }).start();
+            });
+            keyThread.start();
         }
         try {
+            // waiting to finish
             latch.await();
-            if (waiting != null) {
-                waiting.interrupt();
+            // terminating all the threads
+            if (waiting != null && waiting.isAlive()) {
+                waiting.stop();
+            }
+            if (keyThread != null && keyThread.isAlive()) {
+                keyThread.stop();
+            }
+            if (fThread.isAlive()) {
+                fThread.stop();
+            }
+            if (gThread.isAlive()) {
+                gThread.stop();
             }
             return resultF.get() == null || resultG.get() == null ? 0D : resultG.get() * resultF.get();
         } catch (AbortableLatch.AbortedException e) {
@@ -86,6 +106,7 @@ public class Task {
     }
 
     public static Task ofCase(Object theCase) {
+        // Use reflection to retrieve required fields from the package-private Case and ComputationalAttrs classes
         try {
             Class<?> caseClass = Class.forName("spos.lab1.demo.Case");
             assert theCase.getClass().equals(caseClass);
@@ -108,7 +129,6 @@ public class Task {
             attrsResult.setAccessible(true);
 
             if (fAttrs != null) {
-                //System.out.println("kar1");
                 TimeUnit fAttrsTimeUnit = (TimeUnit) attrsTimeUnit.get(fAttrs);
                 long fAttrsDelay = (long) attrsDelay.get(fAttrs);
                 Double fAttrsResult = Double.valueOf(attrsResult.get(fAttrs).toString());
@@ -122,7 +142,6 @@ public class Task {
                 };
             }
             if (gAttrs != null) {
-                //System.out.println("kar2");
                 TimeUnit gAttrsTimeUnit = (TimeUnit) attrsTimeUnit.get(gAttrs);
                 long gAttrsDelay = (long) attrsDelay.get(gAttrs);
                 Double gAttrsResult = Double.valueOf(attrsResult.get(gAttrs).toString());
@@ -135,8 +154,6 @@ public class Task {
                     }
                 };
             }
-            //System.out.println(fAttrsResult);
-            //System.out.println(gAttrsResult);
             return of(f, g);
         } catch (ClassNotFoundException | NoSuchFieldException | IllegalAccessException e) {
             throw new RuntimeException(e);
@@ -144,6 +161,7 @@ public class Task {
     }
 
     public static Task ofCaseIndex(int index, boolean isDouble) {
+        // Use reflection to get the case, and then create a Task using ofCase
         try {
             Class<?> opsClass = isDouble ?
                     Class.forName("spos.lab1.demo.DoubleOps") :
@@ -154,5 +172,22 @@ public class Task {
         } catch (ClassNotFoundException | NoSuchFieldException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static<T, R> Function<T, R> waitAndThen(long delay, TimeUnit units, Function<T, R> then) {
+        return val -> {
+            try {
+                units.sleep(delay);
+                return then.apply(val);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        };
+    }
+
+    public static<T, R> Function<T, R> hang() {
+        return val -> {
+            while (true);
+        };
     }
 }
